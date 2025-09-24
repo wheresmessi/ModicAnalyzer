@@ -39,14 +39,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
-    private lateinit var modelHandler: ModicModelHandler
+    private lateinit var modelHandler: ModelHandler
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         
-        // Initialize the TensorFlow Lite model
-        modelHandler = ModicModelHandler(this)
+        // Initialize the ONNX model
+        modelHandler = OnnxModelHandler(this)
         
         setContent {
             ModicAnalyzerTheme {
@@ -69,13 +69,13 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ModicAnalyzerScreen(
-    modelHandler: ModicModelHandler,
+    modelHandler: ModelHandler,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var selectedImage1 by remember { mutableStateOf<Bitmap?>(null) }
     var selectedImage2 by remember { mutableStateOf<Bitmap?>(null) }
-    var analysisResult by remember { mutableStateOf<ModicAnalysisResult?>(null) }
+    var analysisResult by remember { mutableStateOf<AnalysisResult?>(null) }
     var isAnalyzing by remember { mutableStateOf(false) }
     var hasPermission by remember { mutableStateOf(false) }
     var activeImagePicker by remember { mutableStateOf<Int?>(null) }
@@ -384,22 +384,29 @@ fun ModicAnalyzerScreen(
 
 // Analysis function for two images
 suspend fun analyzeImages(
-    modelHandler: ModicModelHandler,
+    modelHandler: ModelHandler,
     image1: Bitmap,
     image2: Bitmap,
-    onResult: (ModicAnalysisResult) -> Unit
+    onResult: (AnalysisResult) -> Unit
 ) {
     withContext(Dispatchers.IO) {
-        val combinedResult = modelHandler.analyzeTwoImages(image1, image2)
-        
-        withContext(Dispatchers.Main) {
-            onResult(combinedResult)
+        try {
+            val result = modelHandler.analyzeDualImages(image1, image2)
+            val analysisResult = AnalysisResult.fromPair(result)
+            
+            withContext(Dispatchers.Main) {
+                onResult(analysisResult)
+            }
+        } catch (e: Exception) {
+            withContext(Dispatchers.Main) {
+                onResult(AnalysisResult.error("Analysis failed: ${e.message}"))
+            }
         }
     }
 }
 
 @Composable
-fun AnalysisResultCard(result: ModicAnalysisResult) {
+fun AnalysisResultCard(result: AnalysisResult) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
@@ -493,8 +500,8 @@ fun AnalysisResultCard(result: ModicAnalysisResult) {
 @Composable
 fun ModicAnalyzerPreview() {
     ModicAnalyzerTheme {
-        // Create a mock model handler for preview
-        val mockResult = ModicAnalysisResult(
+        // Create a mock analysis result for preview
+        val mockResult = AnalysisResult(
             hasModicChange = true,
             confidence = 0.85f,
             modicScore = 0.85f,
