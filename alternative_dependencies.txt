@@ -1,0 +1,14 @@
+// Alternative TensorFlow Lite dependencies to try if current ones don't work
+
+dependencies {
+    // Option 1: Simpler TFLite setup (replace current TF dependencies with these)
+    implementation 'org.tensorflow:tensorflow-lite:2.14.0'
+    
+    // Option 2: Even more basic (if Option 1 doesn't work)
+    // implementation 'org.tensorflow:tensorflow-lite:2.8.0'
+    
+    // Option 3: With task library (if you want pre-built models)
+    // implementation 'org.tensorflow:tensorflow-lite-task-vision:0.4.4'
+    
+    // Keep your other dependencies unchanged...
+}

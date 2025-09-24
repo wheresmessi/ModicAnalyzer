@@ -46,7 +46,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         
         // Initialize the ONNX model
-        modelHandler = OnnxModelHandler(this)
+        modelHandler = OnnxModelHandler()
         
         setContent {
             ModicAnalyzerTheme {
