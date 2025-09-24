@@ -46,7 +46,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         
         // Initialize the ONNX model
-        modelHandler = OnnxModelHandler()
+        modelHandler = OnnxModelHandler(this)
         
         setContent {
             ModicAnalyzerTheme {
@@ -95,8 +95,8 @@ fun ModicAnalyzerScreen(
         }
     }
 
-    // Analyze images when both are selected
-    LaunchedEffect(selectedImage1, selectedImage2) {
+    // Manual analysis function
+    fun performAnalysis() {
         if (selectedImage1 != null && selectedImage2 != null) {
             isAnalyzing = true
             analyzeImages(modelHandler, selectedImage1!!, selectedImage2!!) { result ->
@@ -331,6 +331,48 @@ fun ModicAnalyzerScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Analyze Images Button
+        if (selectedImage1 != null && selectedImage2 != null) {
+            Button(
+                onClick = { performAnalysis() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                enabled = !isAnalyzing,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFE57373),
+                    disabledContainerColor = Color(0xFFFFCDD2)
+                )
+            ) {
+                if (isAnalyzing) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Analyzing...",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color.White
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "🔍 Analyze MRI Images",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White
+                    )
+                }
+            }
+        }
+
         // Status message
         if (selectedImage1 == null && selectedImage2 == null) {
             Card(
@@ -351,7 +393,7 @@ fun ModicAnalyzerScreen(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0))
             ) {
                 Text(
-                    text = "Select the ${if (selectedImage1 == null) "T1" else "T2"} image to begin analysis",
+                    text = "Select the ${if (selectedImage1 == null) "T1" else "T2"} image to complete the pair",
                     fontSize = 16.sp,
                     color = Color(0xFFE57373),
                     textAlign = TextAlign.Center,
@@ -361,23 +403,9 @@ fun ModicAnalyzerScreen(
         }
 
         // Analysis result
-        if (isAnalyzing) {
+        analysisResult?.let { result ->
             Spacer(modifier = Modifier.height(16.dp))
-            CircularProgressIndicator(
-                modifier = Modifier.size(48.dp),
-                color = Color(0xFFE57373)
-            )
-            Text(
-                text = "Analyzing images...",
-                fontSize = 16.sp,
-                color = Color.Gray,
-                modifier = Modifier.padding(top = 16.dp)
-            )
-        } else {
-            analysisResult?.let { result ->
-                Spacer(modifier = Modifier.height(16.dp))
-                AnalysisResultCard(result)
-            }
+            AnalysisResultCard(result)
         }
     }
 }
