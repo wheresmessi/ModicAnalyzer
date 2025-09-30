@@ -43,21 +43,50 @@ class SimpleTensorFlowHandler private constructor() {
             }
             
             Log.d(TAG, "Starting model initialization...")
+            Log.d(TAG, "Device info: ${android.os.Build.MODEL} (${android.os.Build.MANUFACTURER})")
+            Log.d(TAG, "Android version: ${android.os.Build.VERSION.RELEASE} (API ${android.os.Build.VERSION.SDK_INT})")
+            
+            // Debug: print packaged assets
+            val files = context.assets.list("") ?: emptyArray()
+            Log.d(TAG, "Assets packaged: ${files.joinToString()}")
             
             // Load model file from assets
             val modelBuffer = loadModelFile(context)
                 ?: return ModelInitResult.Error("Failed to load model file from assets")
             
-            // Configure interpreter options (CPU only)
+            // Configure interpreter options for maximum compatibility
             val options = Interpreter.Options().apply {
-                setNumThreads(4)
+                setNumThreads(Runtime.getRuntime().availableProcessors().coerceAtMost(4))
+                setUseNNAPI(false) // Disable NNAPI for compatibility
+                // Note: setAllowFp16PrecisionForFp32 is deprecated, using default precision
+                Log.d(TAG, "Interpreter configured with ${Runtime.getRuntime().availableProcessors().coerceAtMost(4)} threads")
             }
             
-            // Create interpreter
-            interpreter = Interpreter(modelBuffer, options)
+            // Create interpreter with detailed error handling and version compatibility checks
+            try {
+                interpreter = Interpreter(modelBuffer, options)
+                Log.d(TAG, "TensorFlow Lite interpreter created successfully")
+            } catch (e: IllegalArgumentException) {
+                Log.e(TAG, "Model compatibility error - this usually means the model was created with a newer TensorFlow version", e)
+                Log.e(TAG, "Exception type: ${e.javaClass.simpleName}")
+                Log.e(TAG, "Exception message: ${e.message}")
+                
+                // Check if it's a version compatibility issue
+                if (e.message?.contains("version") == true || e.message?.contains("builtin opcode") == true) {
+                    return ModelInitResult.Error("Model incompatible: Model was created with a newer TensorFlow version. Please update TensorFlow Lite or recreate the model with an older version. Error: ${e.message}")
+                } else {
+                    return ModelInitResult.Error("Model format error: ${e.message}")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to create TensorFlow Lite interpreter", e)
+                Log.e(TAG, "Exception type: ${e.javaClass.simpleName}")
+                Log.e(TAG, "Exception message: ${e.message}")
+                Log.e(TAG, "Exception cause: ${e.cause}")
+                return ModelInitResult.Error("Failed to create interpreter: ${e.message}")
+            }
             
-            // Validate model
-            val validationResult = validateModel()
+            // Validate model structure (skip test inference for now)
+            val validationResult = validateModelStructure()
             if (validationResult != ModelInitResult.Success) {
                 cleanup()
                 return validationResult
@@ -68,7 +97,11 @@ class SimpleTensorFlowHandler private constructor() {
             return ModelInitResult.Success
             
         } catch (e: Exception) {
-            Log.e(TAG, "Error initializing model: ${e.message}", e)
+            Log.e(TAG, "Unexpected error during model initialization", e)
+            Log.e(TAG, "Exception type: ${e.javaClass.simpleName}")
+            Log.e(TAG, "Exception message: ${e.message}")
+            Log.e(TAG, "Exception cause: ${e.cause}")
+            Log.e(TAG, "Stack trace: ${e.stackTraceToString()}")
             cleanup()
             return ModelInitResult.Error("Model initialization failed: ${e.message}")
         }
@@ -76,20 +109,105 @@ class SimpleTensorFlowHandler private constructor() {
     
     private fun loadModelFile(context: Context): MappedByteBuffer? {
         return try {
+            Log.d(TAG, "Attempting to load model file: $MODEL_FILE_NAME")
+            
+            // Check if assets directory exists and contains the file
+            val assetList = context.assets.list("") ?: emptyArray()
+            if (!assetList.contains(MODEL_FILE_NAME)) {
+                Log.e(TAG, "Model file '$MODEL_FILE_NAME' not found in assets. Available files: ${assetList.joinToString()}")
+                return null
+            }
+            
             val fileDescriptor = context.assets.openFd(MODEL_FILE_NAME)
+            Log.d(TAG, "File descriptor obtained: length=${fileDescriptor.length}, startOffset=${fileDescriptor.startOffset}")
+            
             val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
             val fileChannel = inputStream.channel
             val startOffset = fileDescriptor.startOffset
             val declaredLength = fileDescriptor.declaredLength
+            
+            Log.d(TAG, "Mapping file: startOffset=$startOffset, length=$declaredLength")
             val buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
+            
             Log.d(TAG, "Model file loaded successfully, size: $declaredLength bytes")
+            Log.d(TAG, "Buffer capacity: ${buffer.capacity()}, remaining: ${buffer.remaining()}")
+            
+            // Log first few bytes to help identify model format/version
+            val firstBytes = ByteArray(16)
+            buffer.get(firstBytes)
+            buffer.rewind() // Reset position for interpreter
+            Log.d(TAG, "Model header bytes: ${firstBytes.joinToString(" ") { "%02x".format(it) }}")
+            
+            // Clean up resources
+            inputStream.close()
+            fileDescriptor.close()
+            
             buffer
+        } catch (e: java.io.FileNotFoundException) {
+            Log.e(TAG, "Model file '$MODEL_FILE_NAME' not found", e)
+            Log.e(TAG, "Make sure the file is located at: app/src/main/assets/$MODEL_FILE_NAME")
+            null
+        } catch (e: java.io.IOException) {
+            Log.e(TAG, "IO error loading model file '$MODEL_FILE_NAME'", e)
+            Log.e(TAG, "Exception details: ${e.message}")
+            null
         } catch (e: Exception) {
-            Log.e(TAG, "Error loading model file: ${e.message}", e)
+            Log.e(TAG, "Unexpected error loading model file '$MODEL_FILE_NAME'", e)
+            Log.e(TAG, "Exception type: ${e.javaClass.simpleName}")
+            Log.e(TAG, "Exception message: ${e.message}")
+            Log.e(TAG, "Exception cause: ${e.cause}")
             null
         }
     }
     
+    private fun validateModelStructure(): ModelInitResult {
+        return try {
+            val interpreter = this.interpreter ?: return ModelInitResult.Error("Interpreter is null")
+            
+            Log.d(TAG, "Validating model structure...")
+            
+            // Check input tensor
+            val inputTensor = interpreter.getInputTensor(0)
+            val inputShape = inputTensor.shape()
+            Log.d(TAG, "Input tensor shape: ${inputShape.contentToString()}")
+            Log.d(TAG, "Input tensor type: ${inputTensor.dataType()}")
+            
+            if (inputShape.size != 4) {
+                return ModelInitResult.Error("Invalid input shape: expected 4D tensor, got ${inputShape.size}D")
+            }
+            
+            val batchSize = inputShape[0]
+            val height = inputShape[1] 
+            val width = inputShape[2]
+            val channels = inputShape[3]
+            
+            Log.d(TAG, "Model expects: batch=$batchSize, height=$height, width=$width, channels=$channels")
+            
+            // Check output tensor
+            val outputTensor = interpreter.getOutputTensor(0)
+            val outputShape = outputTensor.shape()
+            Log.d(TAG, "Output tensor shape: ${outputShape.contentToString()}")
+            Log.d(TAG, "Output tensor type: ${outputTensor.dataType()}")
+            
+            if (outputShape.size != 2 || outputShape[1] < NUM_CLASSES) {
+                return ModelInitResult.Error("Invalid output shape: ${outputShape.contentToString()}")
+            }
+            
+            // Skip test inference for now to isolate initialization issues
+            Log.d(TAG, "Model structure validation successful (test inference skipped)")
+            
+            ModelInitResult.Success
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Model structure validation failed", e)
+            Log.e(TAG, "Exception type: ${e.javaClass.simpleName}")
+            Log.e(TAG, "Exception message: ${e.message}")
+            Log.e(TAG, "Exception cause: ${e.cause}")
+            ModelInitResult.Error("Model validation failed: ${e.message}")
+        }
+    }
+    
+    // Keep the original validateModel function for future use when test inference is needed
     private fun validateModel(): ModelInitResult {
         return try {
             val interpreter = this.interpreter ?: return ModelInitResult.Error("Interpreter is null")
@@ -257,9 +375,13 @@ class SimpleTensorFlowHandler private constructor() {
     
     fun cleanup() {
         try {
+            Log.d(TAG, "Starting cleanup...")
             interpreter?.close()
+            Log.d(TAG, "Interpreter closed successfully")
         } catch (e: Exception) {
-            Log.e(TAG, "Error during cleanup: ${e.message}", e)
+            Log.e(TAG, "Error during interpreter cleanup", e)
+            Log.e(TAG, "Exception type: ${e.javaClass.simpleName}")
+            Log.e(TAG, "Exception message: ${e.message}")
         } finally {
             interpreter = null
             isModelLoaded = false

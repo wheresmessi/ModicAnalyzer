@@ -2,6 +2,7 @@ package com.example.modicanalyzer
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.*
@@ -29,6 +30,15 @@ import kotlinx.coroutines.delay
 class WelcomeActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Debug: Check what assets are packaged in the APK
+        try {
+            val files = assets.list("") ?: emptyArray()
+            Log.d("AssetCheck", "Assets packaged: ${files.joinToString()}")
+        } catch (e: Exception) {
+            Log.e("AssetCheck", "Error listing assets: ${e.message}")
+        }
+        
         setContent {
             MaterialTheme(
                 colorScheme = lightColorScheme(

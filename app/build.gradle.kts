@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.modicanalyzer"
-        minSdk = 24
+        minSdk = 26  // Updated to Android O (API 26) to support MethodHandle APIs
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -30,6 +30,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        isCoreLibraryDesugaringEnabled = true  // Enable desugaring for better API compatibility
     }
     kotlinOptions {
         jvmTarget = "11"
@@ -42,9 +43,12 @@ android {
 }
 
 dependencies {
-    // TensorFlow Lite for Android - Optimized for mobile inference
-    implementation("org.tensorflow:tensorflow-lite:2.13.0")
+    // TensorFlow Lite for Android - Updated to support newer model operations
+    implementation("org.tensorflow:tensorflow-lite:2.15.0")
     implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
+    
+    // Core library desugaring for better API compatibility
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
     
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
