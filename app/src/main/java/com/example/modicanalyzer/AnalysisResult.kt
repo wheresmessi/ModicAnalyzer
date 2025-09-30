@@ -3,9 +3,12 @@ package com.example.modicanalyzer
 data class AnalysisResult(
     val hasModicChange: Boolean,
     val confidence: Float,
+    val changeType: String? = null,
+    val details: String? = null,
     val error: String? = null,
     val noModicScore: Float = 0f,
-    val modicScore: Float = 0f
+    val modicScore: Float = 0f,
+    val timestamp: Long = System.currentTimeMillis()
 ) {
     companion object {
         fun fromPair(result: Pair<String, Float>): AnalysisResult {

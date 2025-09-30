@@ -37,11 +37,14 @@ android {
     buildFeatures {
         compose = true
     }
+    
+
 }
 
 dependencies {
-    // ONNX Runtime for Android
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.16.3")
+    // TensorFlow Lite for Android - Optimized for mobile inference
+    implementation("org.tensorflow:tensorflow-lite:2.13.0")
+    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
     
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
