@@ -43,9 +43,10 @@ android {
 }
 
 dependencies {
-    // TensorFlow Lite for Android - Updated to support newer model operations
-    implementation("org.tensorflow:tensorflow-lite:2.15.0")
+    // TensorFlow Lite for Android - Updated to version 2.19.0
+    implementation("org.tensorflow:tensorflow-lite:2.19.0")
     implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
+    implementation("org.tensorflow:tensorflow-lite-select-tf-ops:2.19.0")  // Updated to match TFLite version
     
     // Core library desugaring for better API compatibility
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
