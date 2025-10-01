@@ -21,7 +21,7 @@ import java.util.concurrent.Executors
 /**
  * Medical Image Classifier for Modic changes detection
  * Following official TensorFlow Lite documentation pattern
- * Adapted for dual-input model architecture (Sagittal + Axial views)
+ * Adapted for dual-input model architecture (T1 + T2 weighted MRI)
  */
 class ModicClassifier(private val context: Context) {
     // TF Lite interpreter as per official pattern
@@ -78,8 +78,8 @@ class ModicClassifier(private val context: Context) {
             if (inputCount >= 2) {
                 val input1Shape = interpreter.getInputTensor(0).shape()
                 val input2Shape = interpreter.getInputTensor(1).shape()
-                Log.d(TAG, "Input 0 (Sagittal) shape: [${input1Shape.joinToString(", ")}]")
-                Log.d(TAG, "Input 1 (Axial) shape: [${input2Shape.joinToString(", ")}]")
+                Log.d(TAG, "Input 0 (T1 weighted) shape: [${input1Shape.joinToString(", ")}]")
+                Log.d(TAG, "Input 1 (T2 weighted) shape: [${input2Shape.joinToString(", ")}]")
             }
 
             // Finish interpreter initialization
@@ -118,7 +118,7 @@ class ModicClassifier(private val context: Context) {
         return fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
     }
 
-    private fun classify(sagittalImage: Bitmap, axialImage: Bitmap): String {
+    private fun classify(t1Image: Bitmap, t2Image: Bitmap): String {
         check(isInitialized) { "TF Lite Classifier is not initialized yet." }
 
         // Check if we're in fallback mode (model incompatible)
@@ -128,28 +128,28 @@ class ModicClassifier(private val context: Context) {
         }
 
         // Pre-processing: resize both input images to match model input shape
-        val resizedSagittal = Bitmap.createScaledBitmap(
-            sagittalImage,
+        val resizedT1 = Bitmap.createScaledBitmap(
+            t1Image,
             inputImageWidth,
             inputImageHeight,
             true
         )
-        val resizedAxial = Bitmap.createScaledBitmap(
-            axialImage,
+        val resizedT2 = Bitmap.createScaledBitmap(
+            t2Image,
             inputImageWidth,
             inputImageHeight,
             true
         )
 
         // Convert bitmaps to ByteBuffers for dual input
-        val sagittalBuffer = convertBitmapToByteBuffer(resizedSagittal)
-        val axialBuffer = convertBitmapToByteBuffer(resizedAxial)
+        val t1Buffer = convertBitmapToByteBuffer(resizedT1)
+        val t2Buffer = convertBitmapToByteBuffer(resizedT2)
 
         // Define array to store model output
         val output = Array(1) { FloatArray(OUTPUT_CLASSES_COUNT) }
 
         // Run inference with dual inputs
-        val inputs = arrayOf(sagittalBuffer, axialBuffer)
+        val inputs = arrayOf(t1Buffer, t2Buffer)
         val outputs = mapOf(0 to output)
         
         interpreter?.runForMultipleInputsOutputs(inputs, outputs)
@@ -175,11 +175,11 @@ class ModicClassifier(private val context: Context) {
         return resultString
     }
 
-    fun classifyAsync(sagittalImage: Bitmap, axialImage: Bitmap): Task<String> {
+    fun classifyAsync(t1Image: Bitmap, t2Image: Bitmap): Task<String> {
         val task = TaskCompletionSource<String>()
         executorService.execute {
             try {
-                val result = classify(sagittalImage, axialImage)
+                val result = classify(t1Image, t2Image)
                 task.setResult(result)
             } catch (e: Exception) {
                 Log.e(TAG, "Classification error", e)

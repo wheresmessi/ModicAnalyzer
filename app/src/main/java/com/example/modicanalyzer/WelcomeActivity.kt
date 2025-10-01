@@ -136,8 +136,8 @@ fun WelcomeScreen(onAnimationComplete: () -> Unit) {
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
-                        painter = painterResource(id = R.drawable.modicare_logo),
-                        contentDescription = "Modicare Logo",
+                        painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                        contentDescription = "App Logo",
                         modifier = Modifier
                             .size(80.dp)
                             .padding(8.dp),

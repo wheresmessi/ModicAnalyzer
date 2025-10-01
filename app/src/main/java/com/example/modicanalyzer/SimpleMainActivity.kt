@@ -85,7 +85,7 @@ fun MainScreen(classifier: ModicClassifier) {
     
     val context = LocalContext.current
     
-    // Image pickers for dual-input medical model
+    // Image pickers for dual-input medical model (T1 and T2 weighted MRI)
     val sagittalImagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -108,7 +108,7 @@ fun MainScreen(classifier: ModicClassifier) {
         val axial = axialImage
         
         if (sagittal == null || axial == null) {
-            Toast.makeText(context, "Please select both Sagittal and Axial images", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Please select both T1 and T2 weighted images", Toast.LENGTH_SHORT).show()
             return
         }
         
@@ -247,18 +247,18 @@ fun MainScreen(classifier: ModicClassifier) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Sagittal Image Card
+                // T1 Image Card
                 ImageCard(
                     modifier = Modifier.weight(1f),
-                    title = "Sagittal View",
+                    title = "T1 Weighted",
                     image = sagittalImage,
                     onClick = { sagittalImagePicker.launch("image/*") }
                 )
                 
-                // Axial Image Card
+                // T2 Image Card
                 ImageCard(
                     modifier = Modifier.weight(1f),
-                    title = "Axial View",
+                    title = "T2 Weighted",
                     image = axialImage,
                     onClick = { axialImagePicker.launch("image/*") }
                 )

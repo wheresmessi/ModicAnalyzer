@@ -39,14 +39,26 @@ android {
         compose = true
     }
     
+    // Prevent Android from compressing TF Lite model files (modern Kotlin DSL syntax)
+    androidResources {
+        noCompress += "tflite"
+    }
+}
 
+// LiteRT dependency resolution (no conflicts)
+configurations.all {
+    resolutionStrategy {
+        // Force LiteRT version for consistency
+        force("com.google.ai.edge.litert:litert:1.0.1")
+    }
 }
 
 dependencies {
-    // TensorFlow Lite for Android - Updated to version 2.19.0
-    implementation("org.tensorflow:tensorflow-lite:2.19.0")
-    implementation("org.tensorflow:tensorflow-lite-support:0.4.4")
-    implementation("org.tensorflow:tensorflow-lite-select-tf-ops:2.19.0")  // Updated to match TFLite version
+    // LiteRT 2025 - Google's future-proof solution (eliminates conflicts)
+    implementation("com.google.ai.edge.litert:litert:1.0.1")
+    
+    // Task API for official async pattern
+    implementation("com.google.android.gms:play-services-tasks:18.0.2")
     
     // Core library desugaring for better API compatibility
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
