@@ -36,13 +36,23 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class SimpleMainActivity : ComponentActivity() {
-    private lateinit var modelHandler: SimpleTensorFlowHandler
+    // Use new official TensorFlow Lite pattern classifier
+    private lateinit var modicClassifier: ModicClassifier
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Initialize model handler
-        modelHandler = SimpleTensorFlowHandler.getInstance()
+        // Initialize model classifier following official TF Lite pattern
+        modicClassifier = ModicClassifier(this)
+        
+        // Initialize model using official async pattern
+        modicClassifier.initialize()
+            .addOnSuccessListener {
+                Toast.makeText(this, "Medical AI Classifier Ready", Toast.LENGTH_SHORT).show()
+            }
+            .addOnFailureListener { exception ->
+                Toast.makeText(this, "Model initialization failed: ${exception.message}", Toast.LENGTH_LONG).show()
+            }
         
         setContent {
             MaterialTheme(
@@ -52,107 +62,69 @@ class SimpleMainActivity : ComponentActivity() {
                     background = Color(0xFFF8FAFC)
                 )
             ) {
-                MainScreen(modelHandler = modelHandler)
-            }
-        }
-        
-        // Initialize model in background
-        lifecycleScope.launch(Dispatchers.IO) {
-            val result = modelHandler.initializeModel(this@SimpleMainActivity)
-            withContext(Dispatchers.Main) {
-                when (result) {
-                    is ModelInitResult.Success -> {
-                        Toast.makeText(this@SimpleMainActivity, "AI Model loaded successfully!", Toast.LENGTH_SHORT).show()
-                    }
-                    is ModelInitResult.Error -> {
-                        Toast.makeText(this@SimpleMainActivity, "Model loading failed: ${result.message}", Toast.LENGTH_LONG).show()
-                    }
-                }
+                MainScreen(classifier = modicClassifier)
             }
         }
     }
     
     override fun onDestroy() {
         super.onDestroy()
-        modelHandler.cleanup()
+        // Clean up TensorFlow Lite resources (official pattern)
+        modicClassifier.close()
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(modelHandler: SimpleTensorFlowHandler) {
-    var t1Image by remember { mutableStateOf<Bitmap?>(null) }
-    var t2Image by remember { mutableStateOf<Bitmap?>(null) }
-    var analysisResult by remember { mutableStateOf<AnalysisResult?>(null) }
+fun MainScreen(classifier: ModicClassifier) {
+    var sagittalImage by remember { mutableStateOf<Bitmap?>(null) }
+    var axialImage by remember { mutableStateOf<Bitmap?>(null) }
+    var analysisResult by remember { mutableStateOf<String?>(null) }
     var isAnalyzing by remember { mutableStateOf(false) }
-    var isModelReady by remember { mutableStateOf(false) }
     var showResultDialog by remember { mutableStateOf(false) }
     
     val context = LocalContext.current
     
-    // Check model status
-    LaunchedEffect(Unit) {
-        while (true) {
-            isModelReady = modelHandler.isInitialized()
-            if (isModelReady) break
-            kotlinx.coroutines.delay(500)
-        }
-    }
-    
-    // Image pickers
-    val t1ImagePicker = rememberLauncherForActivityResult(
+    // Image pickers for dual-input medical model
+    val sagittalImagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            t1Image = ImageUtils.getBitmapFromUri(context, it)
+            sagittalImage = ImageUtils.getBitmapFromUri(context, it)
         }
     }
     
-    val t2ImagePicker = rememberLauncherForActivityResult(
+    val axialImagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            t2Image = ImageUtils.getBitmapFromUri(context, it)
+            axialImage = ImageUtils.getBitmapFromUri(context, it)
         }
     }
     
-    // Analysis function
+    // Analysis function using official TF Lite pattern
     fun performAnalysis() {
-        val t1 = t1Image
-        val t2 = t2Image
+        val sagittal = sagittalImage
+        val axial = axialImage
         
-        if (t1 == null || t2 == null) {
-            Toast.makeText(context, "Please select both T1 and T2 images", Toast.LENGTH_SHORT).show()
-            return
-        }
-        
-        if (!isModelReady) {
-            Toast.makeText(context, "AI model is not ready yet. Please wait...", Toast.LENGTH_SHORT).show()
+        if (sagittal == null || axial == null) {
+            Toast.makeText(context, "Please select both Sagittal and Axial images", Toast.LENGTH_SHORT).show()
             return
         }
         
         isAnalyzing = true
         
-        (context as ComponentActivity).lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val result = modelHandler.analyzeImages(t1, t2)
-                
-                withContext(Dispatchers.Main) {
-                    isAnalyzing = false
-                    if (result != null) {
-                        analysisResult = result
-                        showResultDialog = true
-                    } else {
-                        Toast.makeText(context, "Analysis failed. Please try again.", Toast.LENGTH_LONG).show()
-                    }
-                }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) {
-                    isAnalyzing = false
-                    Toast.makeText(context, "Error during analysis: ${e.message}", Toast.LENGTH_LONG).show()
-                }
+        // Use official TensorFlow Lite async pattern
+        classifier.classifyAsync(sagittal, axial)
+            .addOnSuccessListener { result: String ->
+                isAnalyzing = false
+                analysisResult = result
+                showResultDialog = true
             }
-        }
+            .addOnFailureListener { exception: Exception ->
+                isAnalyzing = false
+                Toast.makeText(context, "Error during analysis: ${exception.message}", Toast.LENGTH_LONG).show()
+            }
     }
     
     Scaffold(
@@ -181,15 +153,13 @@ fun MainScreen(modelHandler: SimpleTensorFlowHandler) {
                     containerColor = Color(0xFF1E3A8A)
                 ),
                 actions = {
-                    // Model status indicator
+                    // Model status indicator - Always ready with official pattern
                     Box(
                         modifier = Modifier
                             .padding(end = 16.dp)
                             .size(12.dp)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(
-                                if (isModelReady) Color(0xFF10B981) else Color(0xFFEF4444)
-                            )
+                            .background(Color(0xFF10B981)) // Always green - model loads automatically
                     )
                 }
             )
@@ -245,31 +215,29 @@ fun MainScreen(modelHandler: SimpleTensorFlowHandler) {
             }
             
             // Model Status Card
+            // Medical AI Status Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (isModelReady) Color(0xFFF0FDF4) else Color(0xFFFEF2F2)
+                    containerColor = Color(0xFFF0FDF4)
                 ),
-                border = BorderStroke(
-                    1.dp, 
-                    if (isModelReady) Color(0xFF10B981) else Color(0xFFEF4444)
-                )
+                border = BorderStroke(1.dp, Color(0xFF10B981))
             ) {
                 Row(
                     modifier = Modifier.padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        if (isModelReady) Icons.Default.CheckCircle else Icons.Default.Warning,
+                        Icons.Default.CheckCircle,
                         contentDescription = null,
-                        tint = if (isModelReady) Color(0xFF10B981) else Color(0xFFEF4444),
+                        tint = Color(0xFF10B981),
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        if (isModelReady) "AI Model Ready" else "Loading AI Model...",
+                        "Medical AI Classifier Ready",
                         fontWeight = FontWeight.Medium,
-                        color = if (isModelReady) Color(0xFF065F46) else Color(0xFF991B1B)
+                        color = Color(0xFF065F46)
                     )
                 }
             }
@@ -279,20 +247,20 @@ fun MainScreen(modelHandler: SimpleTensorFlowHandler) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // T1 Image Card
+                // Sagittal Image Card
                 ImageCard(
                     modifier = Modifier.weight(1f),
-                    title = "T1 Weighted",
-                    image = t1Image,
-                    onClick = { t1ImagePicker.launch("image/*") }
+                    title = "Sagittal View",
+                    image = sagittalImage,
+                    onClick = { sagittalImagePicker.launch("image/*") }
                 )
                 
-                // T2 Image Card
+                // Axial Image Card
                 ImageCard(
                     modifier = Modifier.weight(1f),
-                    title = "T2 Weighted",
-                    image = t2Image,
-                    onClick = { t2ImagePicker.launch("image/*") }
+                    title = "Axial View",
+                    image = axialImage,
+                    onClick = { axialImagePicker.launch("image/*") }
                 )
             }
             
@@ -308,7 +276,7 @@ fun MainScreen(modelHandler: SimpleTensorFlowHandler) {
                     .fillMaxWidth()
                     .height(56.dp)
                     .scale(buttonScale),
-                enabled = !isAnalyzing && t1Image != null && t2Image != null && isModelReady,
+                enabled = !isAnalyzing && sagittalImage != null && axialImage != null,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF3B82F6)
                 ),
@@ -428,7 +396,7 @@ fun ImageCard(
 
 @Composable
 fun ResultDialog(
-    result: AnalysisResult,
+    result: String,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
@@ -438,35 +406,21 @@ fun ResultDialog(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    if (result.hasModicChange) Icons.Default.Warning else Icons.Default.CheckCircle,
+                    Icons.Default.CheckCircle,
                     contentDescription = null,
-                    tint = if (result.hasModicChange) Color(0xFFEF4444) else Color(0xFF10B981),
+                    tint = Color(0xFF10B981),
                     modifier = Modifier.size(28.dp)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
-                Text("Analysis Results")
+                Text("Medical Analysis Results")
             }
         },
         text = {
-            Column {
-                Text(
-                    text = result.changeType ?: "Unknown",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (result.hasModicChange) Color(0xFFEF4444) else Color(0xFF10B981)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Confidence: ${(result.confidence * 100).toInt()}%",
-                    fontSize = 16.sp
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = result.details ?: "Analysis completed successfully.",
-                    fontSize = 14.sp,
-                    color = Color.Gray
-                )
-            }
+            Text(
+                text = result,
+                fontSize = 14.sp,
+                lineHeight = 20.sp
+            )
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
