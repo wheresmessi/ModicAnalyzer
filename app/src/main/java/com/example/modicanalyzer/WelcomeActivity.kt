@@ -42,8 +42,9 @@ class WelcomeActivity : ComponentActivity() {
         setContent {
             MaterialTheme(
                 colorScheme = lightColorScheme(
-                    primary = Color(0xFF3B82F6),
-                    secondary = Color(0xFF1E3A8A),
+                    primary = Color(0xFF3DDC84),     // Match logo green
+                    secondary = Color(0xFF00C853),   // Complementary green
+                    tertiary = Color(0xFF1B5E20),    // Dark green accent
                     background = Color(0xFFF8FAFC)
                 )
             ) {
@@ -109,9 +110,9 @@ fun WelcomeScreen(onAnimationComplete: () -> Unit) {
             .background(
                 Brush.verticalGradient(
                     colors = listOf(
-                        Color(0xFF1E3A8A), // Deep blue
-                        Color(0xFF3B82F6), // Blue
-                        Color(0xFF60A5FA)  // Light blue
+                        Color(0xFF1B5E20), // Dark green
+                        Color(0xFF2E7D32), // Medium green  
+                        Color(0xFF3DDC84)  // Logo green
                     )
                 )
             ),
@@ -121,14 +122,14 @@ fun WelcomeScreen(onAnimationComplete: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(32.dp)
         ) {
-            // Animated logo
+            // Animated logo - bigger and without white padding
             Card(
                 modifier = Modifier
-                    .size(120.dp)
+                    .size(160.dp)  // Increased from 120dp
                     .scale(logoScale)
                     .alpha(logoAlpha),
                 shape = RoundedCornerShape(20.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White)
             ) {
                 Box(
@@ -139,8 +140,8 @@ fun WelcomeScreen(onAnimationComplete: () -> Unit) {
                         painter = painterResource(id = R.mipmap.ic_launcher_foreground),
                         contentDescription = "App Logo",
                         modifier = Modifier
-                            .size(80.dp)
-                            .padding(8.dp),
+                            .fillMaxSize()  // Fill entire card to remove padding
+                            .padding(4.dp), // Minimal padding
                         contentScale = ContentScale.Fit
                     )
                 }
